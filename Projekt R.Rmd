@@ -1,0 +1,336 @@
+---
+title: "projektzaliczeniowy"
+output: html_document
+date: "2025-01-19"
+---
+
+## 437524, Aleksander Mickiewicz, as.mickiewic@student.uw.edu.pl
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Wczytanie danych
+
+Wczytuję pakiety dplyr, vioplot oraz car na potrzeby działania na danych oraz tworzenia wykresów.
+
+```{r}
+library(dplyr)
+library(car)
+library(vioplot)
+library(ggpubr)
+```
+## Załadowanie danych
+
+Załadowuję dane. Następnie usuwam z pliku dane dotyczące samego sprayu oraz miejsca produkcji (ze względu na nierelewantność dla prowadzonych analiz - są to dane w dużej mierze brakujące).
+
+```{r}
+data <- read.csv("https://mimuw.edu.pl/~szym/laluz.csv", header=TRUE, sep=";")
+data<-data[, -5]
+data<-data[-401, ]
+```
+
+Tworzę wykres normalności rozkładu.
+
+```{r}
+ggqqplot(data$time_in_hours, ylab = "Time in hours", xlab = FALSE)
+```
+
+Wykres pokazuje dane odstające. W celu przeprowadzania dalszych analiz uznaję te dane za błędnie wprowadzone i pozbywam się ich.
+
+```{r}
+data <- data[-c(288, 296, 364, 373), ]
+```
+
+## Podstawowe statystyki danych
+
+```{r}
+class(data) # Mówi jak dane są interpretowane
+dim(data) # Poznaję ilość wierszy oraz kolumn
+colnames(data) # Poznaję tytuły kolumn 
+max(data["time_in_hours"]) # Poznaję najdłuższy czas działania żarówki
+min(data["time_in_hours"]) # Poznaję najkrótszy czas działania żarówki
+max(data["price_in_PLN"]) # Poznaję cenę najdrożej sprzedawanej żarówki
+min(data["price_in_PLN"]) # Poznaję cenę najtaniej sprzedawanej żarówki
+str(data) # Poznaję strukturę i typ danych w poszczególnych kolumnach
+summary(data) # Poznaję dokładne statystyki w poszczególnych kolumnach
+```
+
+## Czy żarówki o podwójnej bańce mają dłuższy średni czas życia niż zwykłe żarówki?
+
+```{r}
+mean.time.table <- data %>%  group_by(product_type, sprayed) %>%
+  summarise(mean.time=mean(time_in_hours),
+            .groups='drop') #tworzę tabelę zawierającą średni czas pracy dla każdego rodzaju żarówki ze sprayem lub nie
+
+time.reg.nos <- mean.time.table$mean.time[mean.time.table$product_type == "regular bulb" & mean.time.table$sprayed == "none"] #przypisuje wartość średnią dla regularnej żarówki bez sprayu
+
+time.doub.nos <- mean.time.table$mean.time[mean.time.table$product_type == "DoubleBulb" & mean.time.table$sprayed == "none"] #to samo dla podwójnej bez sprayu
+
+time.reg.nos < time.doub.nos
+```
+
+Podwójne żarówki średnio działają dłużej niż zwykłe.
+
+## Czy spray faktycznie przedłuża średni czas życia żarówki? Czy ma to miejsce dla obu typów?
+
+```{r}
+time.reg.spray <- mean.time.table$mean.time[mean.time.table$product_type == "regular bulb" & mean.time.table$sprayed == "CoatItYourself"] #przypisuje wartość średnią dla regularnej żarówki ze sprayem
+
+time.reg.nos <- mean.time.table$mean.time[mean.time.table$product_type == "regular bulb" & mean.time.table$sprayed == "none"] #to samo dla regularnej żarówki bez sprayu
+
+time.doub.spray <- mean.time.table$mean.time[mean.time.table$product_type == "DoubleBulb" & mean.time.table$sprayed == "CoatItYourself"] #to samo co wyżej dla podwójnej żarówki ze sprayem
+
+time.doub.nos <- mean.time.table$mean.time[mean.time.table$product_type == "DoubleBulb" & mean.time.table$sprayed == "none"] #to samo dla bez sprayu
+
+time.reg.nos < time.reg.spray
+time.doub.nos < time.doub.spray
+```
+Tworzę wykresy pokazujące ilość żarówek od przedziału czasu pracy dla żarówek zwykłych bez i z sprayem.
+```{r}
+hist(data$time_in_hours[data$product_type == 'regular bulb' & data$sprayed == 'none'], 
+     main = "Zwykłe bez sprayu", 
+     xlab = "Czas w godzinach",
+     ylab = "Liczba żarówek",
+     border = "black", 
+     col = "green", 
+     las = 1)
+```
+
+
+```{r}
+hist(data$time_in_hours[data$product_type == 'regular bulb' & data$sprayed == 'CoatItYourself'], 
+     main = "Zwykłe ze sprayem", 
+     xlab = "Czas w godzinach",
+     ylab = "Liczba żarówek",
+     ylim = c(0, 35),
+     border = "black", 
+     col = "yellow", 
+     las = 1)
+```
+
+Tworzę wykresy pokazujące ilość żarówek od przedziału czasu pracy dla żarówek podwójnych bez i z sprayem.
+
+```{r}
+hist(data$time_in_hours[data$product_type == 'DoubleBulb' & data$sprayed == 'none'], 
+     main = "Podwójne bez sprayu", 
+     xlab = "Czas w godzinach",
+     ylab = "Liczba żarówek",
+     ylim = c(0, 35),
+     border = "black", 
+     col = "blue", 
+     las = 1)
+```
+
+```{r}
+hist(data$time_in_hours[data$product_type == 'DoubleBulb' & data$sprayed == 'CoatItYourself'], 
+     main = "Podwójne ze sprayem", 
+     xlab = "Czas w godzinach",
+     ylab = "Liczba żarówek",
+     ylim = c(0, 35),
+     border = "black", 
+     col = "red", 
+     las = 1)
+```
+
+Przeprowadzam testy statystyczne t studenta, porównujące średnie czasy działania żarówek bez sprayu z żarówkami osprayowanymi, dla obu rodzajów żarówek.
+
+```{r}
+# Wybieram dane do wykresu. Tworzę tabele dla każdego typu żarówek osobno (spray i bez sprayu). Następnie przypisuję dane do zmiennych dla każdego rodzaju żarówek.
+data.regular <- data %>% filter(product_type == "regular bulb")
+
+reg.nospray <- data.regular$`time_in_hours`[data.regular$sprayed == "none"]
+
+reg.spray <- data.regular$`time_in_hours`[data.regular$sprayed == "CoatItYourself"]
+
+data.double <- data %>% filter(product_type == "DoubleBulb")
+
+doub.nospray <- data.double$`time_in_hours`[data.double$sprayed == "none"]
+
+doub.spray <- data.double$`time_in_hours`[data.double$sprayed == "CoatItYourself"]
+```
+
+H0 (hipoteza zerowa) - różnica pomiędzy średnimi obu grup jest równa zero
+
+H1 (hipoteza alternatywna) - różnica pomiędzy średnimi obu grup jest większa od zera
+
+```{r}
+t.test(time_in_hours ~ sprayed, data.regular,
+       alternative = "greater") #dla zwykłych żarówek - H1
+
+t.test(time_in_hours ~ sprayed, data.double,
+       alternative = "greater") #dla podwójnych żarówek - H1
+
+```
+
+W obu przypadkach odrzucona jest hipoteza zerowa - spray wydłuża faktycznie średni czas życia każdego rodzaju żarówek.
+
+Tworzę wykres zależności czasu życia żarówki od rodzaju:
+
+```{r vioplot}
+vioplot(reg.nospray, reg.spray, doub.nospray, doub.spray, 
+        col = palette.colors(palette = "Okabe-Ito")[4:9],
+        main = "Zależność czasu pracy od rodzaju żarówki", xaxt = "n")
+axis(1, at = c(1, 2, 3, 4),
+     labels = c("Zwykła bez sprayu", "Zwykła + spray", "Podwójna bez sprayu", "Podwójna + spray"),
+     cex.axis = 0.7)
+```
+
+Z wykresu można odczytać, że żarówki osprayowane działają średnio dłużej niż nieosprayowane tego samego rodzaju. W przypadku żarówki podwójnej bez sprayu można dodatkowo zauważyć, że mimo iż działają średnio krócej, maksymalny odczytany czas działania przewyższa ten dla osprayowanego wariantu. Co więcej, charakterystyczny dla wykresu "garb" znajduje się dalej od środka niż ma to miejsce dla pozostałych żarówek, co może sugerować zaburzenie rozkładu normalnego. W celu zweryfikowania przeprowadzone zostaną testy Shapiro-Wilka dla każdego rodzaju żarówek, by zbadać normalność rozkładu.
+
+Dla testu Shapiro-Wilka obierana hipoteza zerowa sugeruje rozkład normalny. W przypadku gdy p-value jest mniejsze niż wybrany poziomowi istotności odrzucona zostaje hipoteza zerowa.
+
+H0 (hipoteza zerowa) - dane spełniają założenia rozkładu normalnego
+
+H1 - (hipoteza alternatywna) - dane nie spełniają założenia rozkładu normalnego
+
+Dla wszystkich testów przyjmuję poziom istotności 0.05
+
+```{r}
+    #normalność dla każdej grupy żarówek
+data.regular <- data %>% filter(product_type == "regular bulb")
+
+reg.nospray <- data.regular$`time_in_hours`[data.regular$sprayed == "none"]
+
+reg.spray <- data.regular$`time_in_hours`[data.regular$sprayed == "CoatItYourself"]
+
+
+shapiro.reg.nos <- shapiro.test(reg.nospray)
+
+shapiro.reg.spray <- shapiro.test(reg.spray)
+
+
+data.double <- data %>% filter(product_type == "DoubleBulb")
+
+doub.nospray <- data.double$`time_in_hours`[data.double$sprayed == "none"]
+
+doub.spray <- data.double$`time_in_hours`[data.double$sprayed == "CoatItYourself"]
+
+
+shapiro.doub.nos <- shapiro.test(doub.nospray)
+
+shapiro.doub.spray <- shapiro.test(doub.spray)
+```
+
+```{r}
+shapiro.reg.nos # p > 0.05 - H0
+
+shapiro.reg.spray # p > 0.05 - H0
+
+shapiro.doub.nos # p < 0.05 - H1
+
+shapiro.doub.spray # p > 0.05 - H0
+```
+
+Z przeprowadzonych testów statystycznych wynika, że faktycznie rozkład normalny nie jest zachowany dla podwójnych żarówek bez sprayu. Pozostałe typy spełniają założenia rozkładu normalnego.
+
+Aby to zobrazować tworzę wykresu dla każdego rodzaju żarówek:
+
+```{r}
+  #wykresy normalności dla każdego typu żarówek
+ggqqplot(reg.nospray, ylab = "Time in hours", xlab = FALSE, title = "Zwykła bez sprayu")
+
+ggqqplot(reg.spray, ylab = "Time in hours", xlab = FALSE, title = "Zwykła ze sprayem")
+
+ggqqplot(doub.nospray, ylab = "Time in hours", xlab = FALSE, title = "Podwójna bez sprayu")
+
+ggqqplot(doub.spray, ylab = "Time in hours", xlab = FALSE, title = "Podwójna ze sprayem")
+```
+
+## Cena godziny użytkowania jednej żarówki każdego rodzaju.
+
+Tworzę tabele z wymaganymi do obliczeń danymi. Następnie posługując się nimi, liczę średni koszt godziny pracy dla każdego rodzaju żarówki. Ponieważ odrzucone wcześniej dane uznane zostały jako błędne, działam nadal nadal na tej samej ramce. Na koniec tworzę nową ramkę danych z wynikami dla łatwości odczytu.
+
+
+```{r}
+mean.cost.table <- data %>% group_by(product_type) %>% 
+  summarise(mean.cost=mean(price_in_PLN),
+            .groups='drop')#tworzę tabelę zawierającą średni koszt każdego rodzaju żarówki
+
+coatityrslf.price <- 100 #przypisuję cenę sprayu do zmiennej
+
+lifespan.spray.table <- data %>% group_by(sprayed) %>% 
+  summarise(lifespan.total=sum(time_in_hours),
+            .groups='drop') #tworzę tabelę zawierającą sume godzin pracy żarówek wg. osprayowania
+
+lifespan.spray.total <- lifespan.spray.table$lifespan.total[lifespan.spray.table$sprayed == "CoatItYourself"] #przypisuje na ile godzin starcza jeden spray
+
+cost.per.spray <- coatityrslf.price/lifespan.spray.total #koszt psiknięcia
+
+reg.cost <- mean.cost.table$mean.cost[mean.cost.table$product_type == "regular bulb"] #średni koszt zwykłej żarówki
+
+doub.cost <- mean.cost.table$mean.cost[mean.cost.table$product_type == "DoubleBulb"] #średni koszt podwójnej żarówki
+
+reg.nos.eff <- reg.cost/time.reg.nos #cena godziny użytkowania zwykłej żarówki bez sprayu
+
+reg.spray.eff <- (reg.cost/time.reg.spray)  + cost.per.spray #cena godziny użytkowania zwykłej żarówki ze sprayem
+
+doub.nos.eff <- doub.cost/time.doub.nos #cena godziny użytkowania podwójnej żarówki bez sprayu
+
+doub.spray.eff <- doub.cost/time.doub.spray + cost.per.spray #cena godziny użytkowania podwójnej żarówki ze sprayem
+
+cost.hourly <- data.frame(
+  type = c("regular no spray", "regular + spray", "double no spray", "double +spray"),
+  hourly.cost = c(reg.nos.eff, reg.spray.eff, doub.nos.eff, doub.spray.eff) #tworzę tabelę, w której podany jest koszt godziny pracy według rodzaju żarówki oraz osprayowania dla wygody podglądu danych
+)
+```
+
+## Porównanie średniej ceny użytkowania żarówki
+
+```{r}
+min(reg.nos.eff, reg.spray.eff, doub.nos.eff, doub.spray.eff)
+
+```
+
+Najniższy koszt użytkowania ma pojedyncza żarówka ze sprayem.
+
+## Na ile lat średnio starcza jedna żarówka zakładając że działa 4h dziennie
+
+```{r}
+daily.use.time <- 4 #podstawiam pod zmienną, w przypadku zmiany założeń
+yearly.use.time <- 365*daily.use.time #podobnie
+ 
+#liczę na ile lat starcza każdy rodzaj żarówki. Używam do tego danych, które zostały już uprzednio wyliczone
+yearly.lifespan.reg.nos<-time.reg.nos/yearly.use.time 
+
+yearly.lifespan.reg.spray<-time.reg.spray/yearly.use.time
+
+yearly.lifespan.doub.nos<-time.doub.nos/yearly.use.time
+
+yearly.lifespan.doub.spray<-time.doub.spray/yearly.use.time
+
+yearly.lifespan.reg.nos #pojedyncza - spray
+yearly.lifespan.reg.spray #pojedyncza + spray
+yearly.lifespan.doub.nos #podwójna - spray
+yearly.lifespan.doub.spray #podwójna + spray
+```
+```{r}
+max(c(yearly.lifespan.reg.nos, yearly.lifespan.reg.spray, yearly.lifespan.doub.nos, yearly.lifespan.doub.spray))
+min(c(yearly.lifespan.reg.nos, yearly.lifespan.reg.spray, yearly.lifespan.doub.nos, yearly.lifespan.doub.spray))
+```
+
+Na najdłużej starcza podwójna żarówka ze sprayem. Najkrócej pracuje natomiast zwykła żarówka bez sprayu.
+
+## Na ile w modelowym gospodarstwie domowym starczy jedno opakowanie sprayu. Założenia to: modelowe gospodarstwo domowe używa 20 żarówek oraz każda żarówka działa średnio 4 godziny dziennie
+
+```{r}
+lightbulbs.per.household <- 20 #liczba żarówek na gospodarstwo domowe. Podstawione pod zmienną na wypadek zmiany założeń
+
+yearly.worktime.per.household <- lightbulbs.per.household*daily.use.time*365 #czas pracy w godzinach na gospodarstwo domowe rocznie
+
+spray.lifetime.for.household<-lifespan.spray.total/yearly.worktime.per.household #czas w latach na ile starcza spray dla gospodarstwa domowego
+
+spray.lifetime.for.household 
+```
+
+Spray starcza na niemal 25 lat
+
+## Zmiany, dzięki którym wzrośnie ekonomiczny sens stosowania sprayu
+
+Spray działa najlepiej dla zwykłych żarówek. Dla podwójnych wydłuża ich żywotność, jednak wychodzi to niekorzystnie ekonomicznie w porównaniu do podwójnych żarówek bez sprayu. 
+
+Największym problemem jest fakt, że podwójne żarówki, kosztując dwa razy więcej niż zwykłe, nie działają dwa razy dłużej. Dodatkowo użycie na nich sprayu nie wydłuża ich żywotności na tyle, by usprawiedliwić jego koszt.
+
+Główną zmianą powinno być zwiększenie efektywności sprayu na podwójnych żarówkach. Kolejną zmianą powinno być albo wydłużenie czasu życia podwójnych żarówek, lub obniżenie ich ceny tak, by miało to ekonomiczny sens.
+
